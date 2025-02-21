@@ -19,7 +19,7 @@ from chess.svg import piece
 # explanation
 # allpieces include all characters and free tiles
 # characters do just include characters
-stockfish_path = r"E:\CodingNew\School\python\PythonProject\src\stockfish\stockfish.exe"  # Example for Windows
+stockfish_path = r"stockfish\stockfish.exe"  # Example for Windows
 board = chess.Board()
 # Loop through all squares (0 to 63)
 
@@ -57,6 +57,37 @@ def roundLabel():
     roundNo = tkin.Label(root,text=(moveNo + 1))
     roundText.grid(column=0,row=9,sticky="w")
     roundNo = roundNo.grid(column=0,row=9)
+
+def roundLabel(score):
+    def gettext():
+        if score.is_cp():
+            # Centipawn evaluation (score in pawns)
+            centipawn_score = score.relative.score()  # Score in centipawns
+            pawn_score = centipawn_score / 100  # Convert centipawns to full pawns
+            if pawn_score > 0:
+                return f"White is up {pawn_score:.2f} pawns"
+            elif pawn_score < 0:
+                return f"Black is up {-pawn_score:.2f} pawns"
+            else:
+                return "The position is equal"
+
+        elif score.is_mate():
+            mate_score = score.relative.mate()  # Mate in X moves
+            if mate_score > 0:
+                return f"White to mate in {mate_score} moves"
+            else:
+                return f"Black to mate in {-mate_score} moves"
+        else:
+            return "Unknown score format"
+
+    human_readable_score = gettext()
+    print(f"Current Position Evaluation: {human_readable_score}")
+    text = f"Current Position Evaluation: {human_readable_score}"
+    roundText = tkin.Label(root, text="Eval")
+    roundNo = tkin.Label(root, text= text)
+    roundText.grid(column=0, row=9, sticky="w")
+    roundNo = roundNo.grid(column=0, row=9)
+
 
 def addbuttonsgooneturnback():
     global board
@@ -279,6 +310,28 @@ def resettoselectpiece(event):
     for tile in allTiles:
         tile.renderer.config(bg=tile.orcolor)
 
+def drawwinningBar():
+    info = engine.analyse(board, chess.engine.Limit(depth=20))
+    score = info['score']
+    relscore = score.relative.score()
+    relscore += 10000
+    percentage = (relscore / 20000) * 100
+
+
+    canvas = tkin.Canvas(root, width=50, height=1000)
+    canvas.place(x=1250, y=0)  # Positioning the canvas on the right side
+    bar_width = 50
+    bar_height = 1000
+
+    # Draw the full background of the bar (light gray)
+    canvas.create_rectangle(0, 0, bar_width, bar_height, fill="brown")
+
+    # Calculate how much of the bar should be filled
+    red_height = bar_height * (percentage / 100)
+
+    # Draw the red portion based on the percentage
+    canvas.create_rectangle(0, bar_height - red_height, bar_width, bar_height, fill="white")
+
 
         
             
@@ -305,13 +358,13 @@ def makeBoardCanvas():
     global dict
     global board
     global allTiles
-
     for widget in root.winfo_children():
         widget.destroy()
     allTiles = []
     roundLabel()
-    addbuttonsgooneturnback()
     showbestmoves()
+    drawwinningBar()
+    addbuttonsgooneturnback()
     header = tkin.Label(root,text="2D Chess",)
     header.config(font=("courier",20))
     header.grid(column=0,row=0)
@@ -426,6 +479,7 @@ def setUpNextRound():
     global setMove
     global playerGo
     moveNo += 1
+    drawwinningBar()
     if moveNo % 2 == 0:
         playerGo = "It's white's move"
         setMove = "w"
@@ -439,7 +493,7 @@ def setUpNextRound():
     piecescolor = getAllPiecesFromColor(setMove)
     addSelectHandlersToPieces(piecescolor)
     roundLabel()
-    
+
 setUpNextRound()
 
 root.mainloop()
