@@ -1,4 +1,8 @@
 ﻿import tkinter as tkin
+from cgitb import reset
+from collections import Counter
+from tempfile import tempdir
+
 from PIL import ImageTk,Image
 import os.path
 import chess
@@ -6,6 +10,8 @@ import chess.engine
 from typing import List
 from tkinter import filedialog, Toplevel
 import chess.pgn
+from PIL.IcoImagePlugin import IcoFile
+from chess.svg import piece
 
 # to run install chess and pillow with pip and stockfish exe from here https://stockfishchess.org/download/
 # drag the stockfish exe in the stockfish folder and rename the exe to stockfish
@@ -57,6 +63,10 @@ def showeval(score ):
     roundNo = tkin.Label(root, text= text)
     roundText.grid(column=0, row=6, sticky="w")
 
+def addSelectHandlersToPieces(pieces: List[Tile]):
+    for tile in pieces:
+        tile.renderer.bind("<Button-1>", getselectedHandler(tile))
+        tile.renderer.config(cursor="hand2")
 
 def addbuttonsgooneturnback():
     global board
@@ -221,10 +231,68 @@ def deleteAllHandlersAndCursorFromTiles():
         tile.renderer.bind("<Button-3>", do_nothing)
         tile.renderer.config(cursor="no", bg=tile.orcolor, highlightcolor=tile.orcolor, highlightbackground=tile.orcolor)
 
-def addSelectHandlersToPieces(pieces: List[Tile]):
-    for tile in pieces:
-        tile.renderer.bind("<Button-1>", getselectedHandler(tile))
-        tile.renderer.config(cursor="hand2")
+def deleteAllHandlersAndCursorFromTiles():
+    for tile in allTiles:
+        tile.renderer.bind("<Button-1>", do_nothing)
+        tile.renderer.bind("<Button-3>", do_nothing)
+        tile.renderer.config(cursor="no", bg=tile.orcolor, highlightcolor=tile.orcolor, highlightbackground=tile.orcolor)
+
+def showCheck():
+    if board.is_check() is False:
+        return
+   
+    def getid():
+       for square, piece in board.piece_map().items():
+            if piece.piece_type ==  chess.KING and piece.color == chess.WHITE:
+                return square
+           
+       
+    id = getid()
+    test = board.attackers(color=chess.BLACK,square=id )
+        
+    for square in test:
+        tomark = getPieceAtIndex(square)
+        tomark.renderer.config(bg="red")
+
+def showForcedCheckMate():
+    result = engine.analyse(board, chess.engine.Limit(time=1))  # Adjust time limit as needed
+    if isinstance(result["score"], chess.engine.Mate) is False:
+        return 
+    
+    newbord = board.copy()
+    mate_in_moves = result["score"].is_mate()
+    print(f"Forced checkmate in {abs(mate_in_moves)} moves.")
+    # Now get the moves leading to checkmate
+    moves = []
+    while not newbord.is_game_over():
+        # Get the best move from the engine
+        move = engine.play(newbord, chess.engine.Limit(time=0.5))  # Adjust time limit as needed
+        newbord.push(move.move)
+        moves.append(move.move)
+        # Check if the game is over (checkmate)
+        if newbord.is_checkmate():
+            break
+    print("Moves leading to checkmate:")
+    counter = 1
+    tempdir = {}
+    for move in moves:
+        if tempdir.get(move.from_square) is None:
+            tempdir[move.from_square] = 0
+
+        if tempdir.get(move.to_square) is None:
+            tempdir[move.to_square] = 0
+
+        tempdir[move.to_square] += 1
+        tempdir[move.from_square] += 1
+            
+        piece = getPieceAtIndex(move.to_square)
+        piece.renderer.create_text(10, tempdir[move.from_square] * 10, text=str(counter), fill="black", font=("Helvetica", 12))
+        piece = getPieceAtIndex(move.from_square)
+        piece.renderer.create_text(10 , tempdir[move.to_square] * 10, text=str(counter), fill="black", font=("Helvetica", 12))
+        counter += 1
+        
+    print("No forced checkmate found in this position.")
+    return None
 
 def getColorNameFromPiec(piece: Tile):
     if piece.name == "":
@@ -441,9 +509,12 @@ def setUpNextRound():
         playerGo = "It's black's move. Waiting for ai move"
         setMove = "b"
         aiturn()
+        
         setUpNextRound()
         return
     deleteAllHandlersAndCursorFromTiles()
+    showForcedCheckMate()
+    showCheck()
     piecescolor = getAllPiecesFromColor(setMove)
     addSelectHandlersToPieces(piecescolor)
     roundLabel()
