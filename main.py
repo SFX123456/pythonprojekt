@@ -58,7 +58,7 @@ def roundLabel():
     roundText.grid(column=0,row=9,sticky="w")
     roundNo = roundNo.grid(column=0,row=9)
 
-def roundLabel(score):
+def showeval(score):
     def gettext():
         if score.is_cp():
             # Centipawn evaluation (score in pawns)
@@ -85,8 +85,8 @@ def roundLabel(score):
     text = f"Current Position Evaluation: {human_readable_score}"
     roundText = tkin.Label(root, text="Eval")
     roundNo = tkin.Label(root, text= text)
-    roundText.grid(column=0, row=9, sticky="w")
-    roundNo = roundNo.grid(column=0, row=9)
+    roundText.grid(column=0, row=6, sticky="w")
+    roundNo = roundNo.grid(column=0, row=6)
 
 
 def addbuttonsgooneturnback():
@@ -313,6 +313,7 @@ def resettoselectpiece(event):
 def drawwinningBar():
     info = engine.analyse(board, chess.engine.Limit(depth=20))
     score = info['score']
+    showeval(score)
     relscore = score.relative.score()
     relscore += 10000
     percentage = (relscore / 20000) * 100
