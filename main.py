@@ -1,38 +1,26 @@
 ﻿import tkinter as tkin
-from codecs import IncrementalDecoder
-from logging import getLogger
-from operator import index
-from xml.etree.ElementInclude import include
-from xmlrpc.client import INVALID_XMLRPC
-
 from PIL import ImageTk,Image
-import random
 import os.path
 import chess
 import chess.engine
 from typing import List
+from tkinter import filedialog, Toplevel
+import chess.pgn
 
-from chess import Board, Color, ColorName
-from chess.engine import InfoDict
-from chess.svg import piece
+# to run install chess and pillow with pip and stockfish exe from here https://stockfishchess.org/download/
+# drag the stockfish exe in the stockfish folder and rename the exe to stockfish
+# https://theweekinchess.com/a-year-of-pgn-game-files go get pgn files to test // open game butto
 
-# explanation
-# allpieces include all characters and free tiles
-# characters do just include characters
 stockfish_path = r"stockfish\stockfish.exe"  # Example for Windows
 board = chess.Board()
-# Loop through all squares (0 to 63)
-
-
-# Start Stockfish engine
 engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+engine.configure({"UCI_ShowWDL": True})
 print("Initial board:")
 print(board)
-global threshold
-threshold = 5
 moveNo = 0
 playerGo = "It's white's move"
 setMove = "w"
+moves = {}
 
 class Tile:
     def __init__(self, renderer: tkin.Canvas, name: str, index: int, orcolor: str, imageid: int):
@@ -56,37 +44,18 @@ def roundLabel():
     roundText = tkin.Label(root,text="MOVE")
     roundNo = tkin.Label(root,text=(moveNo + 1))
     roundText.grid(column=0,row=9,sticky="w")
-    roundNo = roundNo.grid(column=0,row=9)
+    roundNo.grid(column=0,row=9)
+    roundText = tkin.Label(root,text="TURN")
+    text = "white" if moveNo % 2 == 0 else "black"
+    roundNo = tkin.Label(root,text=text)
+    roundText.grid(column=0,row=10,sticky="w")
+    roundNo.grid(column=0,row=10)
 
-def showeval(score):
-    def gettext():
-        if score.is_cp():
-            # Centipawn evaluation (score in pawns)
-            centipawn_score = score.relative.score()  # Score in centipawns
-            pawn_score = centipawn_score / 100  # Convert centipawns to full pawns
-            if pawn_score > 0:
-                return f"White is up {pawn_score:.2f} pawns"
-            elif pawn_score < 0:
-                return f"Black is up {-pawn_score:.2f} pawns"
-            else:
-                return "The position is equal"
-
-        elif score.is_mate():
-            mate_score = score.relative.mate()  # Mate in X moves
-            if mate_score > 0:
-                return f"White to mate in {mate_score} moves"
-            else:
-                return f"Black to mate in {-mate_score} moves"
-        else:
-            return "Unknown score format"
-
-    human_readable_score = gettext()
-    print(f"Current Position Evaluation: {human_readable_score}")
-    text = f"Current Position Evaluation: {human_readable_score}"
+def showeval(score ):
+    text = f"Current Position Evaluation: "
     roundText = tkin.Label(root, text="Eval")
     roundNo = tkin.Label(root, text= text)
     roundText.grid(column=0, row=6, sticky="w")
-    roundNo = roundNo.grid(column=0, row=6)
 
 
 def addbuttonsgooneturnback():
@@ -95,15 +64,60 @@ def addbuttonsgooneturnback():
     def takeoneturnback():
         global moveNo
         board.pop()
-        board.pop()
-        moveNo -= 2
+        moveNo -= 1
+        
+        if moveNo % 2 == 1:
+            # black move
+            board.pop()
+            moveNo -= 1
+            
         makeBoardCanvas()
         deleteAllHandlersAndCursorFromTiles()
         piecescolor = getAllPiecesFromColor(setMove)
         addSelectHandlersToPieces(piecescolor)
         roundLabel()
     roundButton = tkin.Button(root, text="Undo last move", command=takeoneturnback)
-    roundButton.grid(column=0, row=8, sticky="w")
+    roundButton.grid(column=0, row=2, sticky="w")
+
+def addbuttonsgooneturnforward():
+    global board
+    global moveNo
+    def addlatestmoves():
+        global moveNo
+        if moves.get(moveNo) and moves.get(moveNo + 1):
+            board.push(moves.get(moveNo))
+            board.push(moves.get(moveNo + 1))
+            moveNo += 2
+        makeBoardCanvas()
+        deleteAllHandlersAndCursorFromTiles()
+        piecescolor = getAllPiecesFromColor(setMove)
+        addSelectHandlersToPieces(piecescolor)
+        roundLabel()
+    roundButton = tkin.Button(root, text="redo move", command=addlatestmoves)
+    roundButton.grid(column=0, row=3, sticky="w")
+def show_popupopengame(root):
+    # Create a new top-level window (popup)
+    def selectfile():
+        global moveNo
+        global moves
+        file_path = filedialog.askopenfilename(title="Select a file")
+
+        if file_path is None:  # If the user selected a file
+            print("No file selected")
+            return None
+
+        pgn = open(file_path)
+        game = chess.pgn.read_game(pgn)
+        board.reset()
+        moveNo = 0
+        moves = {}
+        for move in game.mainline_moves():
+            board.push(move)
+            moves[moveNo] = move
+            moveNo += 1
+        makeBoardCanvas()
+    roundButton = tkin.Button(root, text="open game", command=selectfile)
+    roundButton.grid(column=0, row=5, sticky="w")
 
 def show_popup(root):
     # Create a new top-level window (popup)
@@ -153,21 +167,7 @@ def showbestmoves():
         index = 0
         sameor = {}
         sameor2 = {}
-        anayse = engine.analyse(board, chess.engine.Limit(depth=20))  # Adjust the time for deeper analysis
-        scoreold = anayse["score"].relative.score()
         for  move in info:
-            print(move["score"].turn.real)
-            print(move["score"].white())
-            print(threshold)
-            scorerel = getrelative(scoreold, move["score"].relative.score().real)
-            print("the score wa"
-                  ""
-                  "" + str(scorerel))
-            if scorerel < 0:
-                print("the score was to low " + str(scorerel))
-            else:
-                print("the score was" + str(move["score"].relative.score().real))
-
             actualmove : chess.Move = move["pv"][0]
             piece1 = getPieceAtIndex(actualmove.from_square)
             piece2 = getPieceAtIndex(actualmove.to_square)
@@ -185,9 +185,6 @@ def showbestmoves():
     roundButton = tkin.Button(root, text="Show best moves", command=showbestmoveshandle)
     roundButton.grid(column=0, row=7, sticky="w")
     
-def playerLabel(playerGo):
-    pass
-
 def labelTop():
     topLabels = ["A","B","C","D","E","F","G","H"]
     count=1
@@ -205,12 +202,6 @@ def labelSide():
         num = tkin.Label(root,text=num)
         num.grid(column=0,row=count,sticky="E")
         count+=1
-
-def padding():
-    #left padding #####################
-    lLabel = tkin.Label(root)
-    lLabel.grid(column=0,ipadx=50)
-
 
 def getAllPiecesFromColor(color: str) -> List[Tile]:
     filtered_pieces = []
@@ -237,7 +228,7 @@ def addSelectHandlersToPieces(pieces: List[Tile]):
 
 def getColorNameFromPiec(piece: Tile):
     if piece.name == "":
-        return None
+        raise Exception("piece needs to have a name")   
     return "w" if piece.name.isupper() else "b"
 
 def getPieceAtIndex(index: int) -> Tile:
@@ -251,14 +242,13 @@ def getPieceAtIndex(index: int) -> Tile:
         
     
 def handleallvalidtiles(startpiece: Tile):
-    print("its " + startpiece.name)
-    print(startpiece.index)
     for tile in board.legal_moves:
         if tile.from_square == startpiece.index:
             piecetoaddcolor = getPieceAtIndex(tile.to_square)
             piecetoaddcolor.renderer.config(bg="purple")
             piecetoaddcolor.renderer.config(cursor="hand2")
             piecetoaddcolor.renderer.bind("<Button-1>", getselectedtomoveHandler( startpiece, piecetoaddcolor))
+            
 def isTheSameMove(move: chess.Move, move2: chess.Move) -> bool:
     return move.to_square == move2.to_square and move.from_square == move2.from_square
 
@@ -280,8 +270,8 @@ def doMoveUiChanges( frompiece: Tile, topiece: Tile):
 
 def getselectedtomoveHandler(frompiece: Tile,topiece: Tile):
     def handler(event):
-        print("do move" + topiece.name)
         global egal
+        global moveNo
 
         info = engine.analyse(board, chess.engine.Limit(depth=20), multipv=5)
 
@@ -289,15 +279,15 @@ def getselectedtomoveHandler(frompiece: Tile,topiece: Tile):
         for legal_move in board.legal_moves:
             if legal_move.from_square == frompiece.index and legal_move.to_square == topiece.index:
                 if not any(filter(lambda movetockeck: isTheSameMove(movetockeck["pv"][0], legal_move), info)):
-                    print("not one the computer would recommend")
+                    print("the computer would not recommend that move")
                     res = show_popup(root)
-                    print(res)
                     if res == "0":
                         frompiece.renderer.config(bg="red")
                         continue
 
-                doMoveUiChanges(frompiece, topiece)
                 board.push(legal_move)
+                moves[moveNo] = legal_move
+                makeBoardCanvas()
                 setUpNextRound()
 
     return handler
@@ -315,9 +305,10 @@ def drawwinningBar():
     score = info['score']
     showeval(score)
     relscore = score.relative.score()
+    if relscore is None:
+        return 
     relscore += 10000
     percentage = (relscore / 20000) * 100
-
 
     canvas = tkin.Canvas(root, width=50, height=1000)
     canvas.place(x=1250, y=0)  # Positioning the canvas on the right side
@@ -332,21 +323,11 @@ def drawwinningBar():
 
     # Draw the red portion based on the percentage
     canvas.create_rectangle(0, bar_height - red_height, bar_width, bar_height, fill="white")
-
-
-        
             
 def getselectedHandler(piece: Tile):
     def handler(event):
-        print("piece name is" + piece.name)
-        color = getColorNameFromPiec(piece)
-        print(color)
-        if color == None:
-            return
         deleteAllHandlersAndCursorFromTiles()
         handleallvalidtiles(piece)
-        piecessamecolor = getAllPiecesFromColor(color)
-        
 
     return handler
 
@@ -366,6 +347,8 @@ def makeBoardCanvas():
     showbestmoves()
     drawwinningBar()
     addbuttonsgooneturnback()
+    addbuttonsgooneturnforward()
+    show_popupopengame(root)
     header = tkin.Label(root,text="2D Chess",)
     header.config(font=("courier",20))
     header.grid(column=0,row=0)
@@ -375,7 +358,6 @@ def makeBoardCanvas():
     for square in chess.SQUARES:
         piece = board.piece_at(square)  # Get the piece at this square
         if piece:  # If there's a piece on the square
-            print(f"Square {square}: {piece.symbol()} ({piece.color})")
             rows = (square // 8)
             color = "brown" if (square + rows) % 2 == 0 else "white"
             if piece.symbol().isupper():
@@ -394,7 +376,6 @@ def makeBoardCanvas():
             
     counterindex = 0
     for row in range(8):
-        print("next one")
         for index in range(8):
             if dictallpieces.get(counterindex) is None:
                 color = "brown" if (index + row) % 2 == 0 else "white"
@@ -402,76 +383,48 @@ def makeBoardCanvas():
                 renderer.grid(column= index + 1,row=(8 - row))
                 tile = Tile(renderer, "", counterindex, color, -10)
                 allTiles.append(tile)
-            else:
-                print("conmtinunersnterisnteii")
             counterindex+= 1
 
-
-
-
     return allTiles
-
-
-def unbind(event):
-    pass
-
 
 def aiturn():
     global engine
     global board
     result = engine.play(board, chess.engine.Limit(time=2))  # Let the engine think for 2 seconds
     board.push(result.move)
-    print(result.move)
-    frompiece = getPieceAtIndex(result.move.from_square)
-    topiece = getPieceAtIndex(result.move.to_square)
-    doMoveUiChanges( frompiece, topiece )
+    moves[moveNo] = result.move
+    print("ai is doing move " + str(result.move))
+    makeBoardCanvas()
+
+def ckeckforlose():
+    if board.is_game_over() is False:
+        return None
     
-
-
-
-def winLose(otherPiece):
-
-    #if king dies
-
     popup = tkin.Tk()
-    popup.geometry("1000x800")
-
-    popup.wm_title("You WIN!!!")
-
-    label = tkin.Label(popup, font=("Helvetica", 100))
-
-    if otherPiece.color == "b":
-        #white wins
-        msg = "White Wins!!"
-        popup.config(bg="white")
-        label.config(bg="white", fg="black")
-
-    if otherPiece.color == "w":
-        #black wins
-        msg = "Black Wins!!"
-        popup.config(bg="black")
-        label.config(bg="black", fg="white")
-
-
-    label.config(text=msg)
-
-
-    label.pack()
+    popup.geometry("300x50")
+    message = ""
+    if board.is_checkmate():
+        message = ("Checkmate!")
+    elif board.is_stalemate():
+        message = ("Stalemate!")
+    elif board.is_insufficient_material():
+        message = ("Draw by insufficient material!")
+    elif board.is_seventyfive_moves():
+        message = ("Draw by 75-move rule!")
+    elif board.is_fivefold_repetition():
+        message = ("Draw by fivefold repetition!")
+    elif board.is_variant_draw():
+        message = ("Draw due to variant rules!")
+    
+    popup.wm_title(message)
 
     popup.mainloop()
 
 
 
-
-    #display menu
-
-
-
-best_moves = []
-
 #main
-playerGo = playerLabel(playerGo)
 pieces = makeBoardCanvas()
+
 root.bind("<Button-3>", resettoselectpiece)
 moveNo = -1
 def setUpNextRound():
@@ -479,8 +432,8 @@ def setUpNextRound():
     global moveNo
     global setMove
     global playerGo
+    ckeckforlose()
     moveNo += 1
-    drawwinningBar()
     if moveNo % 2 == 0:
         playerGo = "It's white's move"
         setMove = "w"
@@ -489,11 +442,12 @@ def setUpNextRound():
         setMove = "b"
         aiturn()
         setUpNextRound()
-        return 
+        return
     deleteAllHandlersAndCursorFromTiles()
     piecescolor = getAllPiecesFromColor(setMove)
     addSelectHandlersToPieces(piecescolor)
     roundLabel()
+    drawwinningBar()
 
 setUpNextRound()
 
